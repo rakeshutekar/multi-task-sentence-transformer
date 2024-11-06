@@ -1,0 +1,85 @@
+Task 1:
+Explanation of Choices in Model Architecture:
+Pooling Strategy (self.pooling = 'mean'): Choice: Used mean pooling over the token embeddings to create fixed-length sentence embeddings. Rationale: Mean pooling considers all token embeddings in the sentence, providing a comprehensive representation of the sentence semantics. It averages the embeddings, which helps in smoothing out noise and capturing the overall meaning. Alternatives: Could have used the [CLS] token embedding or max pooling. The [CLS] token may not capture the full context as effectively, and max pooling might focus too much on the most dominant features. Handling Attention Mask in Pooling: Choice: Multiplied the token embeddings with the attention mask to ignore contributions from padding tokens during mean pooling. Rationale: Padding tokens do not carry meaningful information and should not affect the sentence embeddings. Using the attention mask ensures only valid tokens contribute to the final embedding.
+
+Task 2:
+Explanation of Changes to Support Multi-Task Learning:
+Added Separate Output Layers for Each Task: self.classifier_task_a: A linear layer mapping the sentence embeddings to class scores for Task A (Sentence Classification). self.classifier_task_b: A separate linear layer for Task B (Sentiment Analysis). Rationale: By adding task-specific output layers, the model can share the transformer backbone and sentence embeddings while learning to perform different tasks simultaneously. This setup allows the model to learn representations that are beneficial for both tasks. Modified the forward Method: After obtaining the sentence_embeddings, the embeddings are passed through both classifier_task_a and classifier_task_b to get logits for each task. Rationale: Ensures that during the forward pass, outputs for all tasks are computed, which is essential for multi-task learning. Choice of Tasks and Labels: Task A (Sentence Classification): Classify sentences into predefined classes such as 'News', 'Opinion', 'Entertainment'. We set num_classes_task_a = 3. Task B (Sentiment Analysis): Classify sentences based on sentiment with labels like 'Positive' and 'Negative'. We set num_classes_task_b = 2. Rationale: These tasks are common in NLP and demonstrate how the model can handle multiple objectives. Sample Output and Testing: In the test code, we generate sample sentences and obtain the probabilities for each class in both tasks. Softmax Function: Applied to logits to convert them into probabilities for better interpretability. Rationale: Testing with sample data helps verify that the model outputs are as expected and that the multi-task setup works correctly. Notes on Multi-Task Learning Implementation:
+Shared Backbone and Embeddings: The BERT model and the pooling mechanism are shared across tasks, which allows the model to learn general representations useful for multiple tasks. Benefit: Reduces the overall number of parameters compared to training separate models for each task and can lead to improved performance due to shared learning. Task-Specific Layers: Each task has its own output layer, which allows the model to specialize in each task without interference. Training Considerations: During training, losses from each task would be combined (e.g., summed or weighted) to update the model parameters. Potential for Additional Tasks: The architecture can be easily extended to include more tasks by adding additional task-specific output layers. Flexibility: Makes the model versatile for various applications in NLP. Instructions for Training (Not Included in Code):
+Loss Functions: Use appropriate loss functions for each task, such as CrossEntropyLoss for classification tasks. Example: loss_task_a = criterion_task_a(logits_task_a, labels_task_a) Optimizer and Backpropagation: Combine losses from all tasks and perform backpropagation to update the shared and task-specific parameters. Example: total_loss = loss_task_a + loss_task_b Data Handling: Ensure that you have labeled data for all tasks and that it is properly batched during training. Dependencies:
+Ensure you have the following libraries installed: PyTorch: For tensor operations and model building (pip install torch). Transformers: For pre-trained models and tokenization (pip install transformers). Conclusion:
+The modified model now supports multi-task learning by sharing the transformer backbone and sentence embeddings while having separate output layers for each task. This approach allows the model to perform multiple NLP tasks simultaneously, leveraging shared knowledge and potentially improving overall performance.
+
+Task 4:
+Explanation of Layer-wise Learning Rate Implementation:
+
+Layer-wise Learning Rates:
+Choice: Assigned different learning rates to different layers of the model.
+Transformer Backbone:
+Embeddings Layer:
+Assigned a lower learning rate (lr * 0.1).
+Rationale: The embeddings layer captures fundamental word representations. We want to preserve these pre-trained embeddings with minimal adjustments.
+Encoder Layers:
+Assigned decreasing learning rates from the bottom layer to the top layer.
+Calculation:
+For each layer i, the learning rate is lr * (0.95 ** (num_layers - i - 1)).
+Example:
+Top Layer (Layer 11): Learning rate is lr * (0.95 ** 0) = lr.
+Bottom Layer (Layer 0): Learning rate is lr * (0.95 ** 11).
+Rationale:
+Lower Layers: Capture general language features and should be fine-tuned cautiously to preserve pre-trained knowledge.
+Higher Layers: More task-specific and can adapt more aggressively to new tasks.
+Task-specific Heads:
+Assigned a higher learning rate (1e-4).
+Rationale: Task-specific heads are randomly initialized and require larger updates to learn task-specific mappings.
+Implementation Details:
+Parameter Groups:
+Created parameter groups for each layer with their assigned learning rates.
+Ensured that each parameter is included exactly once to avoid overlaps that can cause errors.
+Optimizer Setup:
+Used PyTorch's AdamW optimizer with the defined parameter groups to apply different learning rates during training.
+Potential Benefits of Using Layer-wise Learning Rates:
+
+Efficient Fine-tuning:
+Selective Adaptation:
+Allows different parts of the model to adapt at appropriate rates, improving learning efficiency.
+Preservation of Pre-trained Knowledge:
+Lower learning rates in foundational layers prevent overwriting valuable pre-trained representations.
+Improved Training Stability:
+Controlled Updates:
+Layer-wise learning rates ensure that updates to the model's parameters are made cautiously where needed, reducing the risk of overfitting or catastrophic forgetting.
+Enhanced Performance in Multi-task Setting:
+Shared Representations:
+Careful fine-tuning of shared layers benefits all tasks in the multi-task model.
+Task-specific Learning:
+Higher learning rates in task-specific heads ensure rapid adaptation to each task's requirements.
+Mitigation of Task Interference:
+Balanced Learning:
+Helps prevent negative transfer between tasks by controlling how shared layers are updated.
+Does the Multi-task Setting Play into That?
+
+Yes, the Multi-task Setting Amplifies These Benefits:
+Shared Backbone Across Tasks:
+In a multi-task setting, tasks share the transformer backbone. Layer-wise learning rates help fine-tune this shared backbone appropriately, benefiting all tasks.
+Reduction of Task Interference:
+Fine-grained control over learning rates reduces the risk that learning for one task will negatively impact another.
+Improved Generalization:
+By carefully adjusting shared layers, the model can learn representations that generalize well across different tasks.
+Rationale for the Specific Learning Rates Set for Each Layer:
+
+Embeddings Layer (lr * 0.1):
+Very Low Learning Rate (e.g., 1e-6 if lr is 1e-5):
+Reason: To prevent significant changes to word embeddings, which are crucial for understanding language.
+Transformer Encoder Layers:
+Lower Layers (e.g., Layers 0-5):
+Lower Learning Rates (e.g., around 5.8e-6 to 7.9e-6):
+Reason: These layers capture basic syntactic and semantic features; small updates help in preserving this knowledge.
+Higher Layers (e.g., Layers 6-11):
+Higher Learning Rates (up to 1e-5):
+Reason: These layers are more task-specific and can benefit from larger updates to adapt to the new tasks.
+Task-specific Heads (1e-4):
+Higher Learning Rate:
+Reason: These layers are initialized randomly and need significant updates to learn mappings from embeddings to task outputs.
+Conclusion:
+
+Implementing layer-wise learning rates in the multi-task sentence transformer model provides fine-grained control over the training process. It balances the need to preserve pre-trained knowledge with the requirement to adapt to new, task-specific information. This approach enhances the model's ability to learn effectively in a multi-task setting, improving performance and training stability.
